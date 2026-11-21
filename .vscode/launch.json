@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+        "type": "java",
+        "name": "Teste",
+        "request": "launch",
+        "mainClass": "br.edu.ifpe.reservas.app.Teste",
+        "projectName": ""
+    },
+    {
+        "type": "java",
+        "name": "Rodar App",
+        "request": "launch",
+        "mainClass": "br.edu.ifpe.reservas.app.App",
+        "console": "integratedTerminal"
+    }
+]
+}

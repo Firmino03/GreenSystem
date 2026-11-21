@@ -1,4 +1,11 @@
 {
   "java.project.sourcePaths": ["src"],
-  "java.project.outputPath": "out"
+  "java.project.outputPath": "out",
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-25",
+      "path": "/usr/lib/jvm/java-25-openjdk-amd64",
+      "default": true
+    }
+  ]
 }
