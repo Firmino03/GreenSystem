@@ -35,7 +35,7 @@ public class Reserva {
                 this.finalidade = validarTexto(finalidade, "finalidade");
             }
 
-    private static String validarTexto(String valor, String campo) throws RegraDeReservaException {
+        public static String validarTexto(String valor, String campo) throws RegraDeReservaException {
         if (valor == null || valor.isBlank()) {
             throw new RegraDeReservaException("O campo " + campo + " não pode ser vazio.");
         }
@@ -46,8 +46,8 @@ public class Reserva {
         return valor;
     }
 
-    private static String validarData(String data) throws RegraDeReservaException {
-        if (data == null) {
+        public static String validarData(String data) throws RegraDeReservaException {
+            if (data == null) {
             throw new RegraDeReservaException("A data não pode ser vazia.");
         }
 
