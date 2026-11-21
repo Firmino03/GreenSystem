@@ -1,7 +1,6 @@
 package br.edu.ifpe.reservas.modelo;
 
 public class Viveiro extends AreaDeCultivo {
-
     public Viveiro(String codigo, String nome, int capacidade) {
         super(codigo, nome, capacidade);
     }

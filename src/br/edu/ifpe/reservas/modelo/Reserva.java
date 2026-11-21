@@ -1,5 +1,4 @@
 package br.edu.ifpe.reservas.modelo;
-
 import br.edu.ifpe.reservas.excecao.RegraDeReservaException;
 
 public class Reserva {
