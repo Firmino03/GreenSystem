@@ -1,6 +1,6 @@
 package br.edu.ifpe.reservas.modelo;
 
-public abstract class AreaDeCultivo {
+public abstract class AreaDeCultivo implements Exportavel {
     private final String codigo;
     private final String nome;
     private final int capacidade;
@@ -47,4 +47,9 @@ public abstract class AreaDeCultivo {
     public abstract int aberturaMinutos();
 
     public abstract int fechamentoMinutos();
+
+    @Override
+    public String paraCsv() {
+        return String.join(";", tipo(), codigo, nome, String.valueOf(capacidade));
+    }
 }
