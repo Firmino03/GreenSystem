@@ -1,7 +1,7 @@
 package br.edu.ifpe.reservas.modelo;
 import br.edu.ifpe.reservas.excecao.RegraDeReservaException;
 
-public class Reserva {
+public class Reserva implements Exportavel {
     private final int numero;
     // AreaDeCultivo é a superclasse de Horta, Estufa e Viveiro: por polimorfismo,
     // a reserva guarda qualquer uma delas sem saber qual é.
@@ -116,5 +116,17 @@ public class Reserva {
 
     public String getFinalidade() {
         return finalidade;
+    }
+
+    @Override
+    public String paraCsv() {
+        String[] partes = data.split("/");
+        String dataIso = partes[2] + "-" + partes[1] + "-" + partes[0];
+        return String.join(";", String.valueOf(numero), area.getCodigo(), solicitante,
+            dataIso, formatarHora(inicioMinutos), formatarHora(fimMinutos), finalidade);
+    }
+
+    public static String formatarHora(int minutos) {
+        return String.format("%02d:%02d", minutos / 60, minutos % 60);
     }
 }
