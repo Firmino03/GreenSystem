@@ -9,6 +9,9 @@ import br.edu.ifpe.reservas.modelo.Reserva;
 import br.edu.ifpe.reservas.modelo.ResumoOcupacao;
 import br.edu.ifpe.reservas.modelo.Viveiro;
 import br.edu.ifpe.reservas.servico.GerenciadorReservas;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Scanner;
 
@@ -21,8 +24,8 @@ public class App {
 
         boolean rodando = true;
         while (rodando) {
-            mostrarMenu(); 
-            if (!teclado.hasNextLine()) {// Verifica se há uma próxima linha de entrada
+            mostrarMenu();
+            if (!teclado.hasNextLine()) {
                 break; 
             }
             String opcao = teclado.nextLine().trim();
@@ -36,8 +39,8 @@ public class App {
                     case "5" -> mostrarAgenda();
                     case "6" -> mostrarConsultas();
                     case "7" -> {
-                    System.out.println("Até logo!");
-                    rodando = false;
+                        System.out.println("Até logo!");
+                        rodando = false;
                     }
                     default -> System.out.println("Opção inválida. Escolha de 1 a 7.");
                 }
@@ -50,7 +53,9 @@ public class App {
 
     private static void mostrarMenu() {
         System.out.println();
-        System.out.println("Áreas: " + gerenciador.totalAreas() + " | Reservas: " + gerenciador.totalReservas());
+        System.out.println("Hoje: " + Reserva.formatarData(LocalDate.now())
+                + " | Áreas: " + gerenciador.totalAreas()
+                + " | Reservas: " + gerenciador.totalReservas());
         System.out.println("1. Cadastrar área  2. Listar áreas  3. Reservar  4. Cancelar");
         System.out.println("5. Agenda do dia   6. Consultas     7. Sair");
         System.out.print("Opção: ");
@@ -58,8 +63,6 @@ public class App {
 
 
     private static void cadastrarArea() throws RegraDeReservaException {
-        //throws é  usado para indicar que o método pode lançar uma exceção, 
-        // e quem chamar esse método deve tratar ou declarar a exceção.
         System.out.println("Tipo: 1. Horta  2. Estufa  3. Viveiro");
         String tipo = lerTexto("Tipo: ");
         String codigo = lerTexto("Código: ").toUpperCase();
@@ -92,12 +95,12 @@ public class App {
         listarAreas();
         String codigo = lerTexto("Área (código): ").toUpperCase();
         String solicitante = lerTexto("Solicitante: ");
-        String data = lerTexto("Data (dd/MM/yyyy): ");
-        int inicio = lerHorario("Início (HH:mm): ");
-        int fim = lerHorario("Fim (HH:mm): ");
+        LocalDate data = Reserva.converterData(lerTexto("Data (dd/MM/yyyy): "));
+        LocalTime inicio = Reserva.converterHora(lerTexto("Início (HH:mm): "));
+        LocalTime fim = Reserva.converterHora(lerTexto("Fim (HH:mm): "));
         String finalidade = lerTexto("Finalidade: ");
 
-        Reserva reserva = gerenciador.reservar(codigo, solicitante, data, inicio, fim, finalidade);
+        Reserva reserva = gerenciador.reservar(codigo, solicitante, data, inicio, fim, finalidade, LocalDate.now());
         System.out.println("Reserva confirmada: " + descreverReserva(reserva));
     }
 
@@ -108,9 +111,10 @@ public class App {
     }
 
     private static void mostrarAgenda() throws RegraDeReservaException {
-        String data = lerTexto("Data (dd/MM/yyyy): ");
+        LocalDate data = Reserva.converterData(lerTexto("Data (dd/MM/yyyy): "));
         String codigo = lerTexto("Área (código, ou Enter para todas): ").toUpperCase();
 
+        // Usa o método sobrecarregado: com ou sem o código da área
         List<Reserva> agenda = codigo.isEmpty()
                 ? gerenciador.agendaDoDia(data)
                 : gerenciador.agendaDoDia(data, codigo);
@@ -148,39 +152,25 @@ public class App {
         }
     }
 
-    private static int lerHorario(String mensagem) throws RegraDeReservaException {
-        String[] partes = lerTexto(mensagem).split(":");
-        if (partes.length != 2) {
-            throw new RegraDeReservaException("Horário inválido: use o formato HH:mm.");
-        }
-        try {
-            int horas = Integer.parseInt(partes[0]);
-            int minutos = Integer.parseInt(partes[1]);
-            if (horas < 0 || horas > 23 || minutos < 0 || minutos > 59) {
-                throw new RegraDeReservaException("Horário inválido: horas de 0 a 23 e minutos de 0 a 59.");
-            }
-            return horas * 60 + minutos;
-        } catch (NumberFormatException e) {
-            throw new RegraDeReservaException("Horário inválido: use apenas números, no formato HH:mm.");
-        }
-    }
-
+    // ---------- Textos de saída ----------
 
     private static String descreverArea(AreaDeCultivo area) {
         return area.tipo() + " " + area.getCodigo() + " | " + area.getNome()
                 + " | capacidade " + area.getCapacidade()
-                + " | " + Reserva.formatarHora(area.aberturaMinutos())
-                + "-" + Reserva.formatarHora(area.fechamentoMinutos())
-                + " | máx. " + area.duracaoMaximaMinutos() + " min";
+                + " | " + Reserva.formatarHora(area.abertura())
+                + "-" + Reserva.formatarHora(area.fechamento())
+                + " | máx. " + area.duracaoMaxima().toMinutes() + " min"
+                + " | antecedência mín. " + area.antecedenciaMinimaDias() + " dia(s)";
     }
 
     private static String descreverReserva(Reserva r) {
         return "#" + r.getNumero() + " " + r.getArea().getNome()
-                + " | " + r.getData() + " "
-                + Reserva.formatarHora(r.getInicioMinutos()) + "-" + Reserva.formatarHora(r.getFimMinutos())
+                + " | " + Reserva.formatarData(r.getData()) + " "
+                + Reserva.formatarHora(r.getInicio()) + "-" + Reserva.formatarHora(r.getFim())
                 + " | " + r.getSolicitante() + " | " + r.getFinalidade();
     }
 
+    // ---------- Dados iniciais (até a persistência em CSV existir) ----------
 
     private static void carregarAreasDeExemplo() {
         try {

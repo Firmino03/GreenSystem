@@ -1,5 +1,8 @@
 package br.edu.ifpe.reservas.modelo;
 
+import java.time.Duration;
+import java.time.LocalTime;
+
 public class Estufa extends AreaDeCultivo {
 
     public Estufa(String codigo, String nome, int capacidade) {
@@ -12,17 +15,22 @@ public class Estufa extends AreaDeCultivo {
     }
 
     @Override
-    public int duracaoMaximaMinutos() {
-        return 60; // 1 hora
+    public Duration duracaoMaxima() {
+        return Duration.ofHours(1);
     }
 
     @Override
-    public int aberturaMinutos() {
-        return 7 * 60; // 7 horas
+    public LocalTime abertura() {
+        return LocalTime.of(7, 0);
     }
 
     @Override
-    public int fechamentoMinutos() {
-        return 19 * 60; // 19 horas
+    public LocalTime fechamento() {
+        return LocalTime.of(19, 0);
+    }
+
+    @Override
+    public int antecedenciaMinimaDias() {
+        return 1;
     }
 }

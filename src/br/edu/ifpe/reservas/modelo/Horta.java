@@ -1,5 +1,8 @@
 package br.edu.ifpe.reservas.modelo;
 
+import java.time.Duration;
+import java.time.LocalTime;
+
 public class Horta extends AreaDeCultivo {
 
     public Horta(String codigo, String nome, int capacidade) {
@@ -12,17 +15,22 @@ public class Horta extends AreaDeCultivo {
     }
 
     @Override
-    public int duracaoMaximaMinutos() {
-        return 120; // 2 horas
+    public Duration duracaoMaxima() {
+        return Duration.ofHours(2);
     }
 
     @Override
-    public int aberturaMinutos() {
-        return 8 * 60; // 8 horas
+    public LocalTime abertura() {
+        return LocalTime.of(8, 0);
     }
 
     @Override
-    public int fechamentoMinutos() {
-        return 18 * 60; // 18 horas
+    public LocalTime fechamento() {
+        return LocalTime.of(18, 0);
+    }
+
+    @Override
+    public int antecedenciaMinimaDias() {
+        return 0;
     }
 }

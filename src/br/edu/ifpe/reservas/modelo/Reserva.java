@@ -1,41 +1,64 @@
 package br.edu.ifpe.reservas.modelo;
+
 import br.edu.ifpe.reservas.excecao.RegraDeReservaException;
 
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
+
 public class Reserva implements Exportavel {
+
+    // STRICT recusa datas que não existem (31/02) e horas inválidas (24:00).
+    // Com STRICT o ano precisa ser "uuuu" (e não "yyyy").
+
+    private static final DateTimeFormatter ENTRADA_DATA =
+            DateTimeFormatter.ofPattern("d/M/uuuu").withResolverStyle(ResolverStyle.STRICT);
+    private static final DateTimeFormatter ENTRADA_HORA =
+            DateTimeFormatter.ofPattern("H:mm").withResolverStyle(ResolverStyle.STRICT);
+    private static final DateTimeFormatter SAIDA_DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter SAIDA_HORA = DateTimeFormatter.ofPattern("HH:mm");
+
     private final int numero;
     // AreaDeCultivo é a superclasse de Horta, Estufa e Viveiro: por polimorfismo,
     // a reserva guarda qualquer uma delas sem saber qual é.
     private final AreaDeCultivo area;
     private final String solicitante;
-    private final String data; 
-    private final int inicioMinutos;
-    private final int fimMinutos;
+    private final LocalDate data;
+    private final LocalTime inicio;
+    private final LocalTime fim;
     private final String finalidade;
 
-    public Reserva(int numero, AreaDeCultivo area, String solicitante, String data, int inicioMinutos, 
-        int fimMinutos, String finalidade)
-            
+    public Reserva(int numero, AreaDeCultivo area, String solicitante, LocalDate data,
+            LocalTime inicio, LocalTime fim, String finalidade)
             throws RegraDeReservaException {
-                if (area == null) {
-                    throw new RegraDeReservaException("A área de cultivo não pode ser nula.");
-                }
-                if (inicioMinutos < 0 || fimMinutos > 24 * 60) {
-                    throw new RegraDeReservaException("Os horários devem estar entre 00:00 e 24:00.");
-                }
-                if (fimMinutos <= inicioMinutos) {
-                    throw new RegraDeReservaException("O horário de fim deve ser depois do início.");
-                }
 
-                this.numero = numero;
-                this.area = area;
-                this.solicitante = validarTexto(solicitante, "solicitante");
-                this.data = validarData(data);
-                this.inicioMinutos = inicioMinutos;
-                this.fimMinutos = fimMinutos;
-                this.finalidade = validarTexto(finalidade, "finalidade");
-            }
+        if (area == null) {
+            throw new RegraDeReservaException("A área de cultivo não pode ser nula.");
+        }
+        if (data == null) {
+            throw new RegraDeReservaException("A data não pode ser vazia.");
+        }
+        if (inicio == null || fim == null) {
+            throw new RegraDeReservaException("Os horários de início e fim são obrigatórios.");
+        }
+        if (!fim.isAfter(inicio)) {
+            throw new RegraDeReservaException("O horário de fim deve ser depois do início.");
+        }
 
-        public static String validarTexto(String valor, String campo) throws RegraDeReservaException {
+        this.numero = numero;
+        this.area = area;
+        this.solicitante = validarTexto(solicitante, "solicitante");
+        this.data = data;
+        this.inicio = inicio;
+        this.fim = fim;
+        this.finalidade = validarTexto(finalidade, "finalidade");
+    }
+
+    // Valida um texto (não vazio, sem ';') e devolve ele sem espaços nas pontas
+    private static String validarTexto(String valor, String campo) throws RegraDeReservaException {
         if (valor == null || valor.isBlank()) {
             throw new RegraDeReservaException("O campo " + campo + " não pode ser vazio.");
         }
@@ -46,48 +69,54 @@ public class Reserva implements Exportavel {
         return valor;
     }
 
-        public static String validarData(String data) throws RegraDeReservaException {
-            if (data == null) {
+    // "12/11/2026" -> LocalDate (recusa datas que não existem)
+    public static LocalDate converterData(String texto) throws RegraDeReservaException {
+        if (texto == null || texto.isBlank()) {
             throw new RegraDeReservaException("A data não pode ser vazia.");
         }
-
-        String[] partes = data.trim().split("/");
-        if (partes.length != 3) {
-            throw new RegraDeReservaException("Data inválida: use o formato dd/MM/yyyy.");
-        }
-
         try {
-            int dia = Integer.parseInt(partes[0]);
-            int mes = Integer.parseInt(partes[1]);
-            int ano = Integer.parseInt(partes[2]);
-
-            if (dia < 1 || dia > 31) {
-                throw new RegraDeReservaException("Dia inválido: use um valor de 1 a 31.");
-            }
-            if (mes < 1 || mes > 12) {
-                throw new RegraDeReservaException("Mês inválido: use um valor de 1 a 12.");
-            }
-            if (ano < 1) {
-                throw new RegraDeReservaException("Ano inválido.");
-            }
-
-            return String.format("%02d/%02d/%04d", dia, mes, ano);
-
-        } 
-        catch (NumberFormatException e) {
-            throw new RegraDeReservaException("Data inválida: use apenas números, no formato dd/MM/yyyy.");
+            return LocalDate.parse(texto.trim(), ENTRADA_DATA);
+        } catch (DateTimeParseException e) {
+            throw new RegraDeReservaException("Data inválida: use uma data que exista, no formato dd/MM/yyyy.");
         }
     }
 
-    public int duracaoMinutos() {
-        return fimMinutos - inicioMinutos;
+    public static LocalTime converterHora(String texto) throws RegraDeReservaException {
+        if (texto == null || texto.isBlank()) {
+            throw new RegraDeReservaException("O horário não pode ser vazio.");
+        }
+        try {
+            return LocalTime.parse(texto.trim(), ENTRADA_HORA);
+        } catch (DateTimeParseException e) {
+            throw new RegraDeReservaException("Horário inválido: use o formato HH:mm, de 00:00 a 23:59.");
+        }
     }
 
+    public static String formatarData(LocalDate data) {
+        return data.format(SAIDA_DATA);
+    }
+
+    public static String formatarHora(LocalTime hora) {
+        return hora.format(SAIDA_HORA);
+    }
+
+    public Duration duracao() {
+        return Duration.between(inicio, fim);
+    }
+
+    // Conflito: mesma área, mesmo dia e horários que se sobrepõem
     public boolean conflitaCom(Reserva outra) {
         return this.area.getCodigo().equals(outra.area.getCodigo())
                 && this.data.equals(outra.data)
-                && this.inicioMinutos < outra.fimMinutos
-                && outra.inicioMinutos < this.fimMinutos;
+                && this.inicio.isBefore(outra.fim)
+                && outra.inicio.isBefore(this.fim);
+    }
+
+    // No CSV a data fica no formato ISO (2026-11-12) e os horários como HH:mm
+    @Override
+    public String paraCsv() {
+        return String.join(";", String.valueOf(numero), area.getCodigo(), solicitante,
+                data.toString(), inicio.toString(), fim.toString(), finalidade);
     }
 
     public int getNumero() {
@@ -102,31 +131,19 @@ public class Reserva implements Exportavel {
         return solicitante;
     }
 
-    public String getData() {
+    public LocalDate getData() {
         return data;
     }
 
-    public int getInicioMinutos() {
-        return inicioMinutos;
+    public LocalTime getInicio() {
+        return inicio;
     }
 
-    public int getFimMinutos() {
-        return fimMinutos;
+    public LocalTime getFim() {
+        return fim;
     }
 
     public String getFinalidade() {
         return finalidade;
-    }
-
-    @Override
-    public String paraCsv() {
-        String[] partes = data.split("/");
-        String dataIso = partes[2] + "-" + partes[1] + "-" + partes[0];
-        return String.join(";", String.valueOf(numero), area.getCodigo(), solicitante,
-            dataIso, formatarHora(inicioMinutos), formatarHora(fimMinutos), finalidade);
-    }
-
-    public static String formatarHora(int minutos) {
-        return String.format("%02d:%02d", minutos / 60, minutos % 60);
     }
 }

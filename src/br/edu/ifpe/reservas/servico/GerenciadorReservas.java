@@ -5,6 +5,11 @@ import br.edu.ifpe.reservas.excecao.RegraDeReservaException;
 import br.edu.ifpe.reservas.modelo.AreaDeCultivo;
 import br.edu.ifpe.reservas.modelo.Reserva;
 import br.edu.ifpe.reservas.modelo.ResumoOcupacao;
+
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -27,7 +32,9 @@ public class GerenciadorReservas {
         areas.put(area.getCodigo(), area);
     }
 
-    public Reserva reservar(String codigoArea, String solicitante, String data, int inicio, int fim, String finalidade)
+    // "hoje" vem de fora (só o App chama LocalDate.now()), para as regras serem testáveis
+    public Reserva reservar(String codigoArea, String solicitante, LocalDate data,
+            LocalTime inicio, LocalTime fim, String finalidade, LocalDate hoje)
             throws RegraDeReservaException, ConflitoDeHorarioException {
 
         AreaDeCultivo area = areas.get(codigoArea);
@@ -35,29 +42,40 @@ public class GerenciadorReservas {
             throw new RegraDeReservaException("Área de cultivo não encontrada: " + codigoArea);
         }
 
+        // O construtor valida textos, data, horários e fim depois do início
         Reserva nova = new Reserva(proximoNumero, area, solicitante, data, inicio, fim, finalidade);
 
-        // RN6: cada subclasse responde com os próprios limites (polimorfismo)
-        if (nova.duracaoMinutos() > area.duracaoMaximaMinutos()) {
+        // Data passada e antecedência mínima (a antecedência vem da subclasse: polimorfismo)
+        if (data.isBefore(hoje)) {
+            throw new RegraDeReservaException("Não é possível reservar uma data que já passou.");
+        }
+        long diasDeAntecedencia = ChronoUnit.DAYS.between(hoje, data);
+        if (diasDeAntecedencia < area.antecedenciaMinimaDias()) {
+            throw new RegraDeReservaException(area.tipo() + " exige antecedência mínima de "
+                    + area.antecedenciaMinimaDias() + " dia(s).");
+        }
+
+        // RN6: duração máxima e horário de funcionamento (polimorfismo)
+        if (nova.duracao().compareTo(area.duracaoMaxima()) > 0) {
             throw new RegraDeReservaException("A duração máxima para " + area.tipo()
-                    + " é de " + area.duracaoMaximaMinutos() + " minutos.");
+                    + " é de " + area.duracaoMaxima().toMinutes() + " minutos.");
         }
-        if (inicio < area.aberturaMinutos()) {
+        if (inicio.isBefore(area.abertura())) {
             throw new RegraDeReservaException(area.tipo() + " só abre às "
-                    + Reserva.formatarHora(area.aberturaMinutos()) + ".");
+                    + Reserva.formatarHora(area.abertura()) + ".");
         }
-        if (fim > area.fechamentoMinutos()) {
+        if (fim.isAfter(area.fechamento())) {
             throw new RegraDeReservaException(area.tipo() + " fecha às "
-                    + Reserva.formatarHora(area.fechamentoMinutos()) + ".");
+                    + Reserva.formatarHora(area.fechamento()) + ".");
         }
 
         // RN5: conflito com reservas já existentes
         for (Reserva existente : reservas) {
             if (existente.conflitaCom(nova)) {
                 throw new ConflitoDeHorarioException("Conflito com a reserva #" + existente.getNumero()
-                        + " (" + existente.getData() + " "
-                        + Reserva.formatarHora(existente.getInicioMinutos()) + "-"
-                        + Reserva.formatarHora(existente.getFimMinutos()) + ").");
+                        + " (" + Reserva.formatarData(existente.getData()) + " "
+                        + Reserva.formatarHora(existente.getInicio()) + "-"
+                        + Reserva.formatarHora(existente.getFim()) + ").");
             }
         }
 
@@ -76,21 +94,19 @@ public class GerenciadorReservas {
     // Método SOBRECARREGADO (RT6): mesmo nome, parâmetros diferentes.
 
     // Agenda de um dia, de todas as áreas
-    public List<Reserva> agendaDoDia(String data) throws RegraDeReservaException {
-        String dataNormalizada = Reserva.validarData(data);
+    public List<Reserva> agendaDoDia(LocalDate data) {
         List<Reserva> resultado = new ArrayList<>();
-
         for (Reserva r : reservas) {
-            if (r.getData().equals(dataNormalizada)) {
+            if (r.getData().equals(data)) {
                 resultado.add(r);
             }
         }
-        resultado.sort(Comparator.comparingInt(Reserva::getInicioMinutos));
+        resultado.sort(Comparator.comparing(Reserva::getInicio));
         return resultado;
     }
 
     // Agenda de um dia, só de uma área
-    public List<Reserva> agendaDoDia(String data, String codigoArea) throws RegraDeReservaException {
+    public List<Reserva> agendaDoDia(LocalDate data, String codigoArea) throws RegraDeReservaException {
         if (!areas.containsKey(codigoArea)) {
             throw new RegraDeReservaException("Área de cultivo não encontrada: " + codigoArea);
         }
@@ -103,12 +119,12 @@ public class GerenciadorReservas {
         return resultado;
     }
 
-    // Total de minutos reservados por área: código -> minutos (HashMap, RT8)
-    public HashMap<String, Integer> totalMinutosPorArea() {
-        HashMap<String, Integer> totais = new HashMap<>();
+    // Total reservado por área: código -> Duration (HashMap, RT8)
+    public HashMap<String, Duration> totalPorArea() {
+        HashMap<String, Duration> totais = new HashMap<>();
         for (Reserva r : reservas) {
             String codigo = r.getArea().getCodigo();
-            totais.put(codigo, totais.getOrDefault(codigo, 0) + r.duracaoMinutos());
+            totais.put(codigo, totais.getOrDefault(codigo, Duration.ZERO).plus(r.duracao()));
         }
         return totais;
     }
@@ -124,7 +140,7 @@ public class GerenciadorReservas {
 
     // Resumo de ocupação de cada área, usando o record
     public List<ResumoOcupacao> resumoDeOcupacao() {
-        HashMap<String, Integer> minutos = totalMinutosPorArea();
+        HashMap<String, Duration> totais = totalPorArea();
         List<ResumoOcupacao> resumos = new ArrayList<>();
 
         for (AreaDeCultivo area : areas.values()) {
@@ -134,13 +150,15 @@ public class GerenciadorReservas {
                     totalReservas++;
                 }
             }
-            int totalMinutos = minutos.getOrDefault(area.getCodigo(), 0);
-            resumos.add(new ResumoOcupacao(area.getCodigo(), area.getNome(), totalReservas, totalMinutos));
+            Duration total = totais.getOrDefault(area.getCodigo(), Duration.ZERO);
+            resumos.add(new ResumoOcupacao(area.getCodigo(), area.getNome(), totalReservas, total));
         }
 
         resumos.sort(Comparator.comparing(ResumoOcupacao::codigoArea));
         return resumos;
     }
+
+    // ---------- Apoio para o menu ----------
 
     public List<AreaDeCultivo> listarAreas() {
         List<AreaDeCultivo> lista = new ArrayList<>(areas.values());
@@ -155,6 +173,7 @@ public class GerenciadorReservas {
     public int totalReservas() {
         return reservas.size();
     }
+
 
     private Reserva buscarReserva(int numero) throws RegraDeReservaException {
         for (Reserva r : reservas) {

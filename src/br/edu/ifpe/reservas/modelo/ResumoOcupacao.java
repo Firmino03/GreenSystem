@@ -1,8 +1,11 @@
 package br.edu.ifpe.reservas.modelo;
 
-public record ResumoOcupacao(String codigoArea, String nomeArea, int totalReservas, int totalMinutos) {
+import java.time.Duration;
 
+public record ResumoOcupacao(String codigoArea, String nomeArea, int totalReservas, Duration total) {
+
+    // 2 horas e 30 minutos -> "2h30"
     public String horasFormatadas() {
-        return String.format("%dh%02d", totalMinutos / 60, totalMinutos % 60);
+        return total.toHours() + "h" + String.format("%02d", total.toMinutesPart());
     }
 }
