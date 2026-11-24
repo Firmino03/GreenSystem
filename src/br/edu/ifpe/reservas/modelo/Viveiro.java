@@ -1,6 +1,10 @@
 package br.edu.ifpe.reservas.modelo;
 
+import java.time.Duration;
+import java.time.LocalTime;
+
 public class Viveiro extends AreaDeCultivo {
+
     public Viveiro(String codigo, String nome, int capacidade) {
         super(codigo, nome, capacidade);
     }
@@ -11,17 +15,22 @@ public class Viveiro extends AreaDeCultivo {
     }
 
     @Override
-    public int duracaoMaximaMinutos() {
-        return 90; // 1 hora e 30 minutos
+    public Duration duracaoMaxima() {
+        return Duration.ofMinutes(90);
     }
 
     @Override
-    public int aberturaMinutos() {
-        return 6 * 60; // 6 horas
+    public LocalTime abertura() {
+        return LocalTime.of(6, 0);
     }
 
     @Override
-    public int fechamentoMinutos() {
-        return 20 * 60; // 20 horas
+    public LocalTime fechamento() {
+        return LocalTime.of(20, 0);
+    }
+
+    @Override
+    public int antecedenciaMinimaDias() {
+        return 2;
     }
 }
