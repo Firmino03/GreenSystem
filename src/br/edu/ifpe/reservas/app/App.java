@@ -8,8 +8,11 @@ import br.edu.ifpe.reservas.modelo.Horta;
 import br.edu.ifpe.reservas.modelo.Reserva;
 import br.edu.ifpe.reservas.modelo.ResumoOcupacao;
 import br.edu.ifpe.reservas.modelo.Viveiro;
+import br.edu.ifpe.reservas.persistencia.RepositorioCsv;
 import br.edu.ifpe.reservas.servico.GerenciadorReservas;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
@@ -18,15 +21,23 @@ import java.util.Scanner;
 public class App {
     private static final Scanner teclado = new Scanner(System.in);
     private static final GerenciadorReservas gerenciador = new GerenciadorReservas();
+    private static final RepositorioCsv repositorio = new RepositorioCsv(Path.of("dados"));
+
+    // Fica false se a leitura dos arquivos falhar: assim não sobrescrevemos o que está no disco
+    private static boolean podeSalvar = true;
 
     public static void main(String[] args) {
-        carregarAreasDeExemplo();
+        carregarDados();
+        if (gerenciador.totalAreas() == 0) {
+            carregarAreasDeExemplo(); 
+        }
 
         boolean rodando = true;
         while (rodando) {
             mostrarMenu();
             if (!teclado.hasNextLine()) {
-                break; 
+                salvarDados(); 
+                break;
             }
             String opcao = teclado.nextLine().trim();
 
@@ -39,14 +50,50 @@ public class App {
                     case "5" -> mostrarAgenda();
                     case "6" -> mostrarConsultas();
                     case "7" -> {
-                        System.out.println("Até logo!");
-                        rodando = false;
+                        if (salvarDados()) {
+                            System.out.println("Até logo!");
+                            rodando = false;
+                        }
                     }
                     default -> System.out.println("Opção inválida. Escolha de 1 a 7.");
                 }
             } catch (RegraDeReservaException | ConflitoDeHorarioException | IllegalArgumentException e) {
                 System.out.println("Não foi possível: " + e.getMessage());
             }
+        }
+    }
+
+    // ---------- Persistência ----------
+
+    private static void carregarDados() {
+        try {
+            List<AreaDeCultivo> areas = repositorio.carregarAreas();
+            List<Reserva> reservas = repositorio.carregarReservas(areas);
+            gerenciador.carregarDados(areas, reservas);
+            if (!areas.isEmpty()) {
+                System.out.println("Dados carregados: " + areas.size() + " área(s) e "
+                        + reservas.size() + " reserva(s).");
+            }
+        } catch (IOException | RegraDeReservaException e) {
+            podeSalvar = false;
+            System.out.println("Não consegui carregar os dados: " + e.getMessage());
+            System.out.println("Vou começar sem eles e não vou gravar nada ao sair, para não apagar os arquivos.");
+        }
+    }
+
+    // Devolve true se pode sair (gravou, ou não devia gravar)
+    private static boolean salvarDados() {
+        if (!podeSalvar) {
+            System.out.println("Os dados não foram gravados (os arquivos tinham erro).");
+            return true;
+        }
+        try {
+            repositorio.salvar(gerenciador.listarAreas(), gerenciador.listarReservas());
+            System.out.println("Dados gravados na pasta dados/.");
+            return true;
+        } catch (IOException e) {
+            System.out.println("Não foi possível gravar os dados: " + e.getMessage());
+            return false;
         }
     }
 
@@ -152,7 +199,6 @@ public class App {
         }
     }
 
-    // ---------- Textos de saída ----------
 
     private static String descreverArea(AreaDeCultivo area) {
         return area.tipo() + " " + area.getCodigo() + " | " + area.getNome()
@@ -170,7 +216,6 @@ public class App {
                 + " | " + r.getSolicitante() + " | " + r.getFinalidade();
     }
 
-    // ---------- Dados iniciais (até a persistência em CSV existir) ----------
 
     private static void carregarAreasDeExemplo() {
         try {
