@@ -183,4 +183,28 @@ public class GerenciadorReservas {
         }
         throw new RegraDeReservaException("Reserva #" + numero + " não encontrada.");
     }
+
+        // ---------- Persistência ----------
+
+    // Devolve as reservas em ordem de número (para gravar no arquivo)
+    public List<Reserva> listarReservas() {
+        List<Reserva> lista = new ArrayList<>(reservas);
+        lista.sort(Comparator.comparingInt(Reserva::getNumero));
+        return lista;
+    }
+
+    // Coloca no gerenciador o que foi lido do arquivo (sem refazer as regras de data)
+    public void carregarDados(List<AreaDeCultivo> novasAreas, List<Reserva> novasReservas)
+            throws RegraDeReservaException {
+        for (AreaDeCultivo area : novasAreas) {
+            cadastrarArea(area);
+        }
+        for (Reserva reserva : novasReservas) {
+            reservas.add(reserva);
+            // RN7: o próximo número é o maior existente mais um
+            if (reserva.getNumero() >= proximoNumero) {
+                proximoNumero = reserva.getNumero() + 1;
+            }
+        }
+    }
 }
