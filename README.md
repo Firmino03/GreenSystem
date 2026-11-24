@@ -36,6 +36,8 @@ Precisa do JDK 25. Na pasta raiz do projeto:
 6. Consultas (ocupação por área e quantidade de solicitantes diferentes)
 7. Sair
 
+A data é digitada como `dd/MM/yyyy` (por exemplo `12/11/2026`) e os horários como `HH:mm` (por exemplo `14:30`).
+
 ## Estrutura dos pacotes
 
 | Pacote | Classes | O que faz |
@@ -49,13 +51,13 @@ Precisa do JDK 25. Na pasta raiz do projeto:
 
 Eu escolhi estes valores, diferentes entre os três tipos:
 
-| Tipo | Duração máxima | Funcionamento |
-|---|---|---|
-| `Horta` | 2 horas | 08:00 às 18:00 |
-| `Estufa` | 1 hora | 07:00 às 19:00 |
-| `Viveiro` | 1 hora e 30 minutos | 06:00 às 20:00 |
+| Tipo | Duração máxima | Funcionamento | Antecedência mínima |
+|---|---|---|---|
+| `Horta` | 2 horas | 08:00 às 18:00 | 0 dia (pode ser reservada para hoje) |
+| `Estufa` | 1 hora | 07:00 às 19:00 | 1 dia |
+| `Viveiro` | 1 hora e 30 minutos | 06:00 às 20:00 | 2 dias |
 
-## Conteúdo aplicado (capítulos 1 a 13)
+## Conteúdo aplicado
 
 | Capítulo | Onde aparece no projeto |
 |---|---|
@@ -65,50 +67,59 @@ Eu escolhi estes valores, diferentes entre os três tipos:
 | 5 | Construtores que validam; `record` `ResumoOcupacao` |
 | 6 | Atributos `private final`, só getters, sem setters |
 | 7 | `Horta`, `Estufa` e `Viveiro` herdam de `AreaDeCultivo` |
-| 8 | Duração máxima e horário de funcionamento sobrescritos em cada subclasse |
+| 8 | Duração máxima, horário de funcionamento e antecedência sobrescritos em cada subclasse |
 | 9 | Classe abstrata `AreaDeCultivo` e interface `Exportavel` (`paraCsv()`) |
 | 10 | `ArrayList` com as reservas |
-| 11 | `HashMap` das áreas por código, `HashMap` do total de minutos por área, `HashSet` dos solicitantes |
+| 11 | `HashMap` das áreas por código, `HashMap` do total por área, `HashSet` dos solicitantes |
 | 12 | Exceções verificadas personalizadas, tratadas no menu |
 | 13 | Código dividido em quatro pacotes |
+| 14 (extra D1) | `LocalDate`, `LocalTime`, `Duration`, `ChronoUnit` e `DateTimeFormatter` com `ResolverStyle.STRICT`; `hoje` recebido como parâmetro |
 
 ## Decisões de projeto
 
-- **Classe abstrata `AreaDeCultivo`:** não existe "área genérica", então ela é abstrata. As três subclasses sobrescrevem os métodos de tipo, duração máxima, abertura e fechamento.
-- **Polimorfismo nos limites:** o `GerenciadorReservas` chama `area.duracaoMaximaMinutos()` e os outros métodos sem saber qual é o tipo da área. Não há `if` nem `switch` sobre o tipo.
+- **Classe abstrata `AreaDeCultivo`:** não existe "área genérica", então ela é abstrata. As três subclasses sobrescrevem os métodos de tipo, duração máxima, abertura, fechamento e antecedência mínima.
+- **Polimorfismo nos limites:** o `GerenciadorReservas` chama `area.duracaoMaxima()` e os outros métodos sem saber qual é o tipo da área. Não há `if` nem `switch` sobre o tipo.
 - **Objetos sempre válidos:** os construtores validam os dados. Se algo estiver errado, o objeto não é criado.
-- **`conflitaCom` na `Reserva`:** duas reservas conflitam se forem da mesma área, no mesmo dia, e o início de uma for antes do fim da outra (e vice-versa). Usei `<` e não `<=`, então terminar às 11:00 e começar às 11:00 não é conflito.
+- **`conflitaCom` na `Reserva`:** duas reservas conflitam se forem da mesma área, no mesmo dia, e o início de uma for antes do fim da outra (e vice-versa). Usei `isBefore` (e não "antes ou igual"), então terminar às 11:00 e começar às 11:00 não é conflito.
 - **Exceções tratadas só no menu:** os métodos de regra lançam as exceções e o `App` trata todas em um único `catch`.
-- **Data e horário:** a data é guardada como texto no formato `dd/MM/yyyy` e normalizada com dois dígitos (assim `1/1/2026` vira `01/01/2026`). Os horários são digitados como `HH:mm` e guardados em minutos desde a meia-noite.
+- **Data e horário com `java.time`:** a data é um `LocalDate` e os horários são `LocalTime`. A duração máxima de cada tipo é uma `Duration`. A leitura usa `DateTimeFormatter` com `ResolverStyle.STRICT`, então datas que não existem (como `31/02/2026`) e horas inválidas (como `24:00`) são recusadas.
+- **`hoje` como parâmetro:** o método `reservar` recebe a data de hoje de fora, e só o `App` chama `LocalDate.now()`. Assim as regras de data passada e de antecedência mínima podem ser testadas com um dia fixo.
+- **O construtor da `Reserva` não confere data passada:** quem confere é o gerenciador, que recebe `hoje`. Fiz assim para, no futuro, conseguir carregar reservas antigas de um arquivo sem dar erro.
 - **Reserva recusada não gasta número:** a reserva só entra na lista e recebe número depois de passar por todas as regras.
 - **Áreas de exemplo:** como o programa ainda não grava em arquivo, ele começa com `HOR01`, `EST01` e `VIV01` cadastradas no código.
 
 ## Melhorias feitas durante o desenvolvimento
 
 - Tirei os setters da `AreaDeCultivo`, porque eles permitiam deixar um objeto inválido depois de criado.
-- Corrigi os métodos abstratos para devolverem valores (`tipo()`, `duracaoMaximaMinutos()`, `aberturaMinutos()`, `fechamentoMinutos()`) em vez de imprimirem na tela.
+- Corrigi os métodos abstratos para devolverem valores em vez de imprimirem na tela.
 - Passei a usar `trim()` e `isBlank()` na validação dos textos e bloqueei o `;` no código e no nome, porque ele quebraria o CSV no futuro.
 - Reuni a validação de textos em um método só (`validarTexto`), para não repetir código.
-- Troquei o `formatarHora` repetido por um método único, `Reserva.formatarHora`.
+- Deixei a formatação de hora em um método único (`Reserva.formatarHora`), em vez de uma cópia em cada classe.
 - Passei a listar as áreas antes de pedir o código na hora de reservar, depois de perceber nos testes que digitar o tipo ("Horta") em vez do código ("HOR01") confundia o usuário.
+- Descobri nos testes do menu que o núcleo aceitava `31/02/2026`, e isso me levou a fazer o D1.
 
 ## Testes
 
-Fiz testes manuais com classes de teste em `app/` (`Teste`, `TesteConflitos` e `TesteConsultas`) e rodando o menu. Testei reserva válida, conflito, reservas que só encostam, duração acima do máximo, fora do horário de funcionamento, datas e horários inválidos, cancelamento, o mesmo horário em áreas diferentes e as consultas.
+Fiz testes manuais com uma classe de teste (`TesteRegras`, que fixa o "hoje" em 10/11/2026 para o resultado ser sempre o mesmo) e rodando o menu. Testei reserva válida, conflito, reservas que só encostam, data passada, antecedência mínima de cada tipo, duração acima do máximo, fora do horário de funcionamento, datas inexistentes (`31/02`), ano bissexto, horários inválidos, cancelamento e as consultas.
+
+Para rodar o teste:
+
+    java -cp out br.edu.ifpe.reservas.app.TesteRegras
 
 ## Limitações conhecidas
 
 - Os dados ficam só na memória e se perdem ao fechar o programa.
-- A validação da data confere só dia de 1 a 31 e mês de 1 a 12, então `31/02/2026` é aceita, e datas passadas também.
 
-## Extras planejados (ainda não feitos)
+## Extras
 
-Pretendo fazer, depois do núcleo: D1 (datas com `java.time`, que resolve as datas inexistentes), D2 (gravar e carregar em CSV), os bônus B1 a B5 e o frontend opcional B6. Vou atualizar este README conforme cada extra ficar pronto e funcionando.
+O D1 (datas e horas com `java.time`) está pronto. Pretendo fazer ainda o D2 (gravar e carregar em CSV), os bônus B1 a B5 e o frontend opcional B6, e vou atualizar este README conforme cada um ficar pronto e funcionando.
 
 ## Uso de ferramentas de IA
 
 Usei o Claude (Anthropic) como apoio para estudar e construir o projeto por etapas.
 
-**O que eu fiz:** escolhi o domínio e defini os limites de cada tipo de área; escrevi as três subclasses, a `ConflitoDeHorarioException`, a primeira versão da `AreaDeCultivo` e da `Reserva` e o começo do `GerenciadorReservas` (`cadastrarArea`, a busca da área no `reservar` e o `cancelar`); apliquei as correções que apareceram nas revisões; compilei e testei tudo; e criei a logo e o nome do projeto.
+**O que eu fiz:** escolhi o domínio e defini os limites de cada tipo de área, incluindo a antecedência mínima; escrevi as três subclasses, a `ConflitoDeHorarioException`, a primeira versão da `AreaDeCultivo` e da `Reserva` e o começo do `GerenciadorReservas` (`cadastrarArea`, a busca da área no `reservar` e o `cancelar`); apliquei as correções que apareceram nas revisões; compilei e testei tudo; e criei a logo e o nome do projeto.
 
-**O que a IA fez:** explicou os conceitos (classe abstrata, polimorfismo, `split`, `try`/`catch`, `HashSet`, `record` etc.), revisou o meu código e apontou erros, e escreveu a versão completa da `AreaDeCultivo` final, da `Reserva` final, do `GerenciadorReservas` final, do `ResumoOcupacao`, da `Exportavel`, do `App`, e das classes de teste. Li, compilei e testei todo esse código.
+**O que a IA fez:** explicou os conceitos (classe abstrata, polimorfismo, `split`, `try`/`catch`, `HashSet`, `record`, `java.time` etc.), revisou o meu código e apontou erros, e escreveu a versão completa da `AreaDeCultivo`, da `Reserva`, do `GerenciadorReservas`, do `ResumoOcupacao`, da `Exportavel`, do `App` e das classes de teste. Para o D1, a IA escreveu a versão com `java.time` das classes `AreaDeCultivo`, `Horta`, `Estufa`, `Viveiro`, `Reserva`, `ResumoOcupacao`, `GerenciadorReservas` e `App`, e a classe de teste `TesteRegras`. O texto deste README também foi escrito com ajuda da IA.
+
+Li, compilei e testei todo esse código, e apliquei a correção do erro de compilação que apareceu no `ResumoOcupacao`.
