@@ -23,10 +23,14 @@ public abstract class AreaDeCultivo implements Exportavel {
             throw new IllegalArgumentException("O " + campo + " não pode ser vazio.");
         }
         valor = valor.trim();
+        if (valor.contains("\uFFFD")) {
+            throw new IllegalArgumentException("O " + campo + " tem um caractere inválido. Digite de novo.");
+        }
         if (valor.contains(";")) {
             throw new IllegalArgumentException("O " + campo + " não pode conter ponto e vírgula.");
         }
         return valor;
+        
     }
 
     public String getCodigo() {
