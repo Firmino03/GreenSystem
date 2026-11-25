@@ -62,6 +62,9 @@ public class Reserva implements Exportavel {
         if (valor == null || valor.isBlank()) {
             throw new RegraDeReservaException("O campo " + campo + " não pode ser vazio.");
         }
+        if (valor.contains("\uFFFD")) {
+            throw new RegraDeReservaException("O campo " + campo + " tem um caractere inválido. Digite de novo.");
+        }
         valor = valor.trim();
         if (valor.contains(";")) {
             throw new RegraDeReservaException("O campo " + campo + " não pode conter ponto e vírgula.");
