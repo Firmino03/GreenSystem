@@ -17,7 +17,7 @@ Eu criei a logo e escolhi o nome Green System para o projeto, pensando em algo q
 
 ## O que o programa faz
 
-É um programa de linha de comando que gerencia reservas de áreas de cultivo do campus. Eu cadastro as áreas, faço reservas, cancelo e consulto a agenda do dia. O programa recusa as reservas que quebram as regras e explica o motivo, e não encerra com erro por causa de uma entrada inválida. Os dados ficam guardados em arquivos, então o programa lembra de tudo quando é aberto de novo.
+É um programa de linha de comando que gerencia reservas de áreas de cultivo do campus. Eu cadastro as áreas, faço reservas, cancelo e consulto a agenda do dia. O programa recusa as reservas que quebram as regras e explica o motivo, e não encerra com erro por causa de uma entrada inválida. Os dados ficam guardados em arquivos, então o programa lembra de tudo quando é aberto de novo, e cada operação feita é registrada em um arquivo de log.
 
 ## Como compilar e executar
 
@@ -26,7 +26,7 @@ Precisa do JDK 25. Na pasta raiz do projeto:
     javac -d out $(find src -name '*.java')
     java -cp out br.edu.ifpe.reservas.app.App
 
-Rode sempre a partir da pasta raiz, porque a pasta `dados/` é criada e lida a partir de onde o programa é executado.
+Rode sempre a partir da pasta raiz, porque a pasta `dados/` e o arquivo `log.txt` são criados e lidos a partir de onde o programa é executado.
 
 ## Menu
 
@@ -47,7 +47,7 @@ A data é digitada como `dd/MM/yyyy` (por exemplo `12/11/2026`) e os horários c
 | `modelo` | `AreaDeCultivo` (abstrata), `Horta`, `Estufa`, `Viveiro`, `Reserva`, `Exportavel`, `ResumoOcupacao` | Os dados e as regras de cada objeto |
 | `excecao` | `RegraDeReservaException`, `ConflitoDeHorarioException` | Os erros de negócio |
 | `servico` | `GerenciadorReservas` | Guarda as áreas e reservas e aplica as regras |
-| `persistencia` | `RepositorioCsv` | Grava e lê os arquivos CSV |
+| `persistencia` | `RepositorioCsv`, `RegistroLog` | Grava e lê os arquivos CSV; registra o log |
 | `app` | `App` | O menu e a conversa com o usuário |
 
 ## Limites de cada tipo de área
@@ -91,8 +91,8 @@ Na primeira execução os arquivos não existem, e isso não é erro: o programa
 | 11 | `HashMap` das áreas por código, `HashMap` do total por área, `HashSet` dos solicitantes |
 | 12 | Exceções verificadas personalizadas, tratadas no menu |
 | 13 | Código dividido em cinco pacotes |
-| 14 (extra D1) | `LocalDate`, `LocalTime`, `Duration`, `ChronoUnit` e `DateTimeFormatter` com `ResolverStyle.STRICT`; `hoje` recebido como parâmetro |
-| 15 (extra D2) | `Path`, `Files`, CSV em UTF-8 e `try-with-resources`; dados gravados ao sair e carregados ao abrir |
+| 14 (extra D1 e B5) | `LocalDate`, `LocalTime`, `LocalDateTime`, `Duration`, `ChronoUnit` e `DateTimeFormatter` com `ResolverStyle.STRICT`; `hoje` recebido como parâmetro |
+| 15 (extra D2 e B5) | `Path`, `Files`, CSV em UTF-8 e `try-with-resources`; dados gravados ao sair e carregados ao abrir; log com `StandardOpenOption.APPEND` |
 
 ## Decisões de projeto
 
@@ -102,9 +102,9 @@ Na primeira execução os arquivos não existem, e isso não é erro: o programa
 - **`conflitaCom` na `Reserva`:** duas reservas conflitam se forem da mesma área, no mesmo dia, e o início de uma for antes do fim da outra (e vice-versa). Usei `isBefore` (e não "antes ou igual"), então terminar às 11:00 e começar às 11:00 não é conflito.
 - **Exceções tratadas só no menu:** os métodos de regra lançam as exceções e o `App` trata todas em um único `catch`.
 - **Data e horário com `java.time`:** a data é um `LocalDate` e os horários são `LocalTime`. A duração máxima de cada tipo é uma `Duration`. A leitura usa `DateTimeFormatter` com `ResolverStyle.STRICT`, então datas que não existem (como `31/02/2026`) e horas inválidas (como `24:00`) são recusadas.
-- **`hoje` como parâmetro:** o método `reservar` recebe a data de hoje de fora, e só o `App` chama `LocalDate.now()`. Assim as regras de data passada e de antecedência mínima podem ser testadas com um dia fixo.
+- **`hoje` como parâmetro:** o método `reservar` recebe a data de hoje de fora, e só o `App` chama `LocalDate.now()` e `LocalDateTime.now()`. Assim as regras de data passada e de antecedência mínima podem ser testadas com um dia fixo.
 - **Reserva recusada não gasta número:** a reserva só entra na lista e recebe número depois de passar por todas as regras.
-- **Só o `RepositorioCsv` mexe com arquivos:** o `GerenciadorReservas` e o `App` não sabem como os dados são gravados. O mesmo método grava áreas e reservas, porque as duas implementam `Exportavel`.
+- **Só o `RepositorioCsv` mexe com os arquivos de dados:** o `GerenciadorReservas` e o `App` não sabem como os dados são gravados. O mesmo método grava áreas e reservas, porque as duas implementam `Exportavel`.
 - **O primeiro campo decide a subclasse:** ao ler `areas.csv`, o texto `Horta`, `Estufa` ou `Viveiro` diz qual classe criar.
 - **Carregar não passa pelo `reservar`:** reservas antigas lidas do arquivo seriam recusadas pelas regras de data passada e antecedência, então o `carregarDados` coloca os dados direto no gerenciador. Por isso o construtor da `Reserva` também não confere data passada.
 - **Numeração contínua (RN7):** ao carregar, o próximo número é o maior número existente mais um.
@@ -128,12 +128,14 @@ Fiz testes manuais com classes de teste e rodando o menu.
 
 - `TesteRegras` fixa o "hoje" em 10/11/2026 para o resultado ser sempre o mesmo. Testa reserva válida, conflito, reservas que só encostam, data passada, antecedência mínima de cada tipo, duração acima do máximo, fora do horário de funcionamento, datas inexistentes (`31/02`), ano bissexto, horários inválidos e área inexistente.
 - `TestePersistencia` usa uma pasta temporária. Testa a primeira execução sem arquivos, a gravação com acentos, linhas em branco, a leitura de volta e a numeração contínua.
-- No menu, testei também o cancelamento, as consultas, a gravação ao sair, a abertura seguinte e arquivos com linha em branco e com linha inválida.
+- `TesteLog` simula duas execuções numa pasta temporária e confere que o log é acrescentado, e não sobrescrito.
+- No menu, testei também o cancelamento, as consultas, a gravação ao sair, a abertura seguinte, arquivos com linha em branco e com linha inválida, e o conteúdo do `log.txt` depois de duas execuções seguidas.
 
 Para rodar os testes:
 
     java -cp out br.edu.ifpe.reservas.app.TesteRegras
     java -cp out br.edu.ifpe.reservas.app.TestePersistencia
+    java -cp out br.edu.ifpe.reservas.app.TesteLog
 
 ## Limitações conhecidas
 
@@ -143,7 +145,25 @@ Para rodar os testes:
 
 ## Extras
 
-O D1 (datas e horas com `java.time`) e o D2 (gravar e carregar em CSV) estão prontos. Pretendo fazer ainda os bônus B1 a B5 e o frontend opcional B6, e vou atualizar este README conforme cada um ficar pronto e funcionando.
+O D1 (datas e horas com `java.time`), o D2 (gravar e carregar em CSV) e o bônus B5 (log) estão prontos. Pretendo fazer ainda os bônus B2, B4, B1 e B3, e vou atualizar este README conforme cada um ficar pronto e funcionando.
+
+### B5: arquivo de log
+
+A cada execução, o programa acrescenta no arquivo `log.txt` uma linha por operação, com a data, a hora e o que foi feito. Registra o início e o fim do programa, o carregamento e a gravação dos dados, as áreas cadastradas, as reservas criadas e canceladas, as consultas e as operações recusadas (com o motivo). O nome do solicitante não vai para o log.
+
+Exemplo:
+
+    25/11/2026 14:02:10 | Programa iniciado
+    25/11/2026 14:02:10 | Dados carregados: 3 área(s) e 2 reserva(s)
+    25/11/2026 14:02:31 | Reserva criada: #3 HOR01 em 30/11/2026 14:00-15:30
+    25/11/2026 14:03:02 | Programa encerrado
+
+Decisões:
+
+- A classe `RegistroLog` usa `LocalDateTime`, `DateTimeFormatter` e `Files.writeString` com `StandardOpenOption.CREATE` e `APPEND`, então as execuções antigas não são apagadas.
+- Só o `App` chama `LocalDateTime.now()`. A `RegistroLog` recebe o momento de fora, como o `hoje` das regras de reserva.
+- Se não for possível escrever no log, o programa avisa e continua funcionando.
+- O `log.txt` está no `.gitignore`, porque é gerado a cada uso.
 
 ## Uso de ferramentas de IA
 
@@ -151,6 +171,6 @@ Usei o Claude (Anthropic) como apoio para estudar e construir o projeto por etap
 
 **O que eu fiz:** escolhi o domínio e defini os limites de cada tipo de área, incluindo a antecedência mínima; escrevi as três subclasses, a `ConflitoDeHorarioException`, a primeira versão da `AreaDeCultivo` e da `Reserva` e o começo do `GerenciadorReservas` (`cadastrarArea`, a busca da área no `reservar` e o `cancelar`); apliquei as correções que apareceram nas revisões; compilei e testei tudo, inclusive no menu e com um arquivo de dados com defeito de propósito; e criei a logo e o nome do projeto.
 
-**O que a IA fez:** explicou os conceitos (classe abstrata, polimorfismo, `split`, `try`/`catch`, `HashSet`, `record`, `java.time`, `Path`, `Files`, `try-with-resources`, UTF-8 etc.), revisou o meu código e apontou erros, e escreveu a versão completa da `AreaDeCultivo`, da `Reserva`, do `GerenciadorReservas`, do `ResumoOcupacao`, da `Exportavel`, do `App` e das classes de teste. Para o D1, escreveu a versão com `java.time` das classes `AreaDeCultivo`, `Horta`, `Estufa`, `Viveiro`, `Reserva`, `ResumoOcupacao`, `GerenciadorReservas` e `App`, e o `TesteRegras`. Para o D2, escreveu o `RepositorioCsv`, os métodos `listarReservas` e `carregarDados` do `GerenciadorReservas`, a nova versão do `App` e o `TestePersistencia`. O texto deste README também foi escrito com ajuda da IA.
+**O que a IA fez:** explicou os conceitos (classe abstrata, polimorfismo, `split`, `try`/`catch`, `HashSet`, `record`, `java.time`, `Path`, `Files`, `try-with-resources`, UTF-8, `StandardOpenOption.APPEND` etc.), revisou o meu código e apontou erros, e escreveu a versão completa da `AreaDeCultivo`, da `Reserva`, do `GerenciadorReservas`, do `ResumoOcupacao`, da `Exportavel`, do `App` e das classes de teste. Para o D1, escreveu a versão com `java.time` das classes `AreaDeCultivo`, `Horta`, `Estufa`, `Viveiro`, `Reserva`, `ResumoOcupacao`, `GerenciadorReservas` e `App`, e o `TesteRegras`. Para o D2, escreveu o `RepositorioCsv`, os métodos `listarReservas` e `carregarDados` do `GerenciadorReservas`, a nova versão do `App` e o `TestePersistencia`. Para o B5, escreveu a `RegistroLog`, a nova versão do `App` com os registros e o `TesteLog`. O texto deste README também foi escrito com ajuda da IA.
 
 Li, compilei e testei todo esse código, e apliquei a correção do erro de compilação que apareceu no `ResumoOcupacao`.
