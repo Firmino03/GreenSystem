@@ -8,12 +8,14 @@ import br.edu.ifpe.reservas.modelo.Horta;
 import br.edu.ifpe.reservas.modelo.Reserva;
 import br.edu.ifpe.reservas.modelo.ResumoOcupacao;
 import br.edu.ifpe.reservas.modelo.Viveiro;
+import br.edu.ifpe.reservas.persistencia.RegistroLog;
 import br.edu.ifpe.reservas.persistencia.RepositorioCsv;
 import br.edu.ifpe.reservas.servico.GerenciadorReservas;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Scanner;
@@ -22,21 +24,24 @@ public class App {
     private static final Scanner teclado = new Scanner(System.in);
     private static final GerenciadorReservas gerenciador = new GerenciadorReservas();
     private static final RepositorioCsv repositorio = new RepositorioCsv(Path.of("dados"));
+    private static final RegistroLog log = new RegistroLog(Path.of("log.txt"));
 
     // Fica false se a leitura dos arquivos falhar: assim não sobrescrevemos o que está no disco
     private static boolean podeSalvar = true;
 
     public static void main(String[] args) {
+        registrar("Programa iniciado");
         carregarDados();
         if (gerenciador.totalAreas() == 0) {
-            carregarAreasDeExemplo(); 
+            carregarAreasDeExemplo(); // primeira execução, sem arquivos
         }
 
         boolean rodando = true;
         while (rodando) {
             mostrarMenu();
             if (!teclado.hasNextLine()) {
-                salvarDados(); 
+                salvarDados(); // entrada encerrada (Ctrl+D)
+                registrar("Entrada encerrada");
                 break;
             }
             String opcao = teclado.nextLine().trim();
@@ -52,6 +57,7 @@ public class App {
                     case "7" -> {
                         if (salvarDados()) {
                             System.out.println("Até logo!");
+                            registrar("Programa encerrado");
                             rodando = false;
                         }
                     }
@@ -59,8 +65,16 @@ public class App {
                 }
             } catch (RegraDeReservaException | ConflitoDeHorarioException | IllegalArgumentException e) {
                 System.out.println("Não foi possível: " + e.getMessage());
+                registrar("Operação recusada (opção " + opcao + "): " + e.getMessage());
             }
         }
+    }
+
+    // ---------- Log ----------
+
+    // Só o App chama LocalDateTime.now()
+    private static void registrar(String operacao) {
+        log.registrar(LocalDateTime.now(), operacao);
     }
 
     // ---------- Persistência ----------
@@ -73,11 +87,13 @@ public class App {
             if (!areas.isEmpty()) {
                 System.out.println("Dados carregados: " + areas.size() + " área(s) e "
                         + reservas.size() + " reserva(s).");
+                registrar("Dados carregados: " + areas.size() + " área(s) e " + reservas.size() + " reserva(s)");
             }
         } catch (IOException | RegraDeReservaException e) {
             podeSalvar = false;
             System.out.println("Não consegui carregar os dados: " + e.getMessage());
             System.out.println("Vou começar sem eles e não vou gravar nada ao sair, para não apagar os arquivos.");
+            registrar("Falha ao carregar os dados: " + e.getMessage());
         }
     }
 
@@ -85,18 +101,22 @@ public class App {
     private static boolean salvarDados() {
         if (!podeSalvar) {
             System.out.println("Os dados não foram gravados (os arquivos tinham erro).");
+            registrar("Dados não gravados (os arquivos tinham erro)");
             return true;
         }
         try {
             repositorio.salvar(gerenciador.listarAreas(), gerenciador.listarReservas());
             System.out.println("Dados gravados na pasta dados/.");
+            registrar("Dados gravados");
             return true;
         } catch (IOException e) {
             System.out.println("Não foi possível gravar os dados: " + e.getMessage());
+            registrar("Falha ao gravar os dados: " + e.getMessage());
             return false;
         }
     }
 
+    // ---------- Menu ----------
 
     private static void mostrarMenu() {
         System.out.println();
@@ -108,6 +128,7 @@ public class App {
         System.out.print("Opção: ");
     }
 
+    // ---------- Opções ----------
 
     private static void cadastrarArea() throws RegraDeReservaException {
         System.out.println("Tipo: 1. Horta  2. Estufa  3. Viveiro");
@@ -125,6 +146,7 @@ public class App {
 
         gerenciador.cadastrarArea(area);
         System.out.println("Área cadastrada: " + descreverArea(area));
+        registrar("Área cadastrada: " + area.tipo() + " " + area.getCodigo());
     }
 
     private static void listarAreas() {
@@ -149,12 +171,16 @@ public class App {
 
         Reserva reserva = gerenciador.reservar(codigo, solicitante, data, inicio, fim, finalidade, LocalDate.now());
         System.out.println("Reserva confirmada: " + descreverReserva(reserva));
+        registrar("Reserva criada: #" + reserva.getNumero() + " " + codigo + " em "
+                + Reserva.formatarData(data) + " " + Reserva.formatarHora(inicio)
+                + "-" + Reserva.formatarHora(fim));
     }
 
     private static void cancelar() throws RegraDeReservaException {
         int numero = lerInteiro("Número da reserva: ");
         gerenciador.cancelar(numero);
         System.out.println("Reserva #" + numero + " cancelada.");
+        registrar("Reserva cancelada: #" + numero);
     }
 
     private static void mostrarAgenda() throws RegraDeReservaException {
@@ -165,6 +191,9 @@ public class App {
         List<Reserva> agenda = codigo.isEmpty()
                 ? gerenciador.agendaDoDia(data)
                 : gerenciador.agendaDoDia(data, codigo);
+
+        registrar("Agenda consultada: " + Reserva.formatarData(data)
+                + (codigo.isEmpty() ? " (todas as áreas)" : " (" + codigo + ")"));
 
         if (agenda.isEmpty()) {
             System.out.println("Nenhuma reserva nesse dia.");
@@ -182,8 +211,10 @@ public class App {
                     + resumo.totalReservas() + " reserva(s) | " + resumo.horasFormatadas());
         }
         System.out.println("Solicitantes diferentes: " + gerenciador.quantidadeSolicitantesDistintos());
+        registrar("Consultas exibidas");
     }
 
+    // ---------- Leitura de dados ----------
 
     private static String lerTexto(String mensagem) {
         System.out.print(mensagem);
@@ -199,6 +230,7 @@ public class App {
         }
     }
 
+    // ---------- Textos de saída ----------
 
     private static String descreverArea(AreaDeCultivo area) {
         return area.tipo() + " " + area.getCodigo() + " | " + area.getNome()
@@ -216,6 +248,7 @@ public class App {
                 + " | " + r.getSolicitante() + " | " + r.getFinalidade();
     }
 
+    // ---------- Áreas de exemplo (só na primeira vez) ----------
 
     private static void carregarAreasDeExemplo() {
         try {
