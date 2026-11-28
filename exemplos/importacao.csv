@@ -1,0 +1,10 @@
+HOR01;Maria José;03/12/2026;09:00;10:30;Colheita de couve
+EST01;Ana;04/12/2026;10:00;11:00;Mudas de alface
+VIV01;Carlos;04/12/2026;08:00;09:30;Adubação do viveiro
+HOR01;Pedro;03/12/2026;10:00;11:00;Rega
+XXX99;Bia;05/12/2026;10:00;11:00;Área que não existe
+HOR01;Lia;31/02/2026;10:00;11:00;Data que não existe
+EST01;Rui;05/12/2026;10:00;12:00;Passa da duração máxima
+HOR01;Teo;05/12/2026;07:00;08:00;Antes de abrir
+linha;quebrada
+HOR01;Ivo;06/12/2026;9:00;10:00;Horário sem zero
