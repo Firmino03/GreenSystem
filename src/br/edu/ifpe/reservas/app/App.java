@@ -6,13 +6,16 @@ import br.edu.ifpe.reservas.modelo.AreaDeCultivo;
 import br.edu.ifpe.reservas.modelo.Estufa;
 import br.edu.ifpe.reservas.modelo.Horta;
 import br.edu.ifpe.reservas.modelo.Reserva;
+import br.edu.ifpe.reservas.modelo.ResultadoImportacao;
 import br.edu.ifpe.reservas.modelo.ResumoOcupacao;
 import br.edu.ifpe.reservas.modelo.Viveiro;
 import br.edu.ifpe.reservas.persistencia.RegistroLog;
 import br.edu.ifpe.reservas.persistencia.RepositorioCsv;
 import br.edu.ifpe.reservas.servico.GerenciadorReservas;
+import br.edu.ifpe.reservas.servico.ImportadorReservas;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,6 +26,7 @@ import java.util.Scanner;
 public class App {
     private static final Scanner teclado = new Scanner(System.in);
     private static final GerenciadorReservas gerenciador = new GerenciadorReservas();
+    private static final ImportadorReservas importador = new ImportadorReservas(gerenciador);
     private static final RepositorioCsv repositorio = new RepositorioCsv(Path.of("dados"));
     private static final RegistroLog log = new RegistroLog(Path.of("log.txt"));
 
@@ -54,16 +58,18 @@ public class App {
                     case "4" -> cancelar();
                     case "5" -> mostrarAgenda();
                     case "6" -> mostrarConsultas();
-                    case "7" -> {
+                    case "7" -> importarReservas();
+                    case "8" -> {
                         if (salvarDados()) {
                             System.out.println("Até logo!");
                             registrar("Programa encerrado");
                             rodando = false;
                         }
                     }
-                    default -> System.out.println("Opção inválida. Escolha de 1 a 7.");
+                    default -> System.out.println("Opção inválida. Escolha de 1 a 8.");
                 }
-            } catch (RegraDeReservaException | ConflitoDeHorarioException | IllegalArgumentException e) {
+            } catch (RegraDeReservaException | ConflitoDeHorarioException
+                     | IllegalArgumentException | IOException e) {
                 System.out.println("Não foi possível: " + e.getMessage());
                 registrar("Operação recusada (opção " + opcao + "): " + e.getMessage());
             }
@@ -124,7 +130,7 @@ public class App {
                 + " | Áreas: " + gerenciador.totalAreas()
                 + " | Reservas: " + gerenciador.totalReservas());
         System.out.println("1. Cadastrar área  2. Listar áreas  3. Reservar  4. Cancelar");
-        System.out.println("5. Agenda do dia   6. Consultas     7. Sair");
+        System.out.println("5. Agenda do dia   6. Consultas     7. Importar CSV  8. Sair");
         System.out.print("Opção: ");
     }
 
@@ -214,6 +220,32 @@ public class App {
         registrar("Consultas exibidas");
     }
 
+    // B2: importa reservas de um CSV, ignorando as linhas inválidas
+    private static void importarReservas() throws RegraDeReservaException, IOException {
+        System.out.println("Formato de cada linha: codigoArea;solicitante;dd/MM/yyyy;HH:mm;HH:mm;finalidade");
+        String caminho = lerTexto("Caminho do arquivo CSV: ");
+        if (caminho.isEmpty()) {
+            throw new RegraDeReservaException("Informe o caminho do arquivo.");
+        }
+
+        List<String> linhas;
+        try {
+            linhas = repositorio.lerLinhasDeImportacao(Path.of(caminho));
+        } catch (NoSuchFileException e) {
+            throw new RegraDeReservaException("Arquivo não encontrado: " + caminho);
+        }
+
+        ResultadoImportacao resultado = importador.importar(linhas, LocalDate.now());
+
+        System.out.println("Importação concluída: " + resultado.importadas() + " reserva(s) importada(s), "
+                + resultado.descartadas() + " linha(s) descartada(s).");
+        for (String motivo : resultado.motivos()) {
+            System.out.println("  descartada: " + motivo);
+        }
+        registrar("Importação de " + caminho + ": " + resultado.importadas()
+                + " importada(s), " + resultado.descartadas() + " descartada(s)");
+    }
+
     // ---------- Leitura de dados ----------
 
     private static String lerTexto(String mensagem) {
@@ -248,7 +280,6 @@ public class App {
                 + " | " + r.getSolicitante() + " | " + r.getFinalidade();
     }
 
-    // ---------- Áreas de exemplo (só na primeira vez) ----------
 
     private static void carregarAreasDeExemplo() {
         try {
