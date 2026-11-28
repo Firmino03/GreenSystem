@@ -20,10 +20,25 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 public class RepositorioCsv {
     private final Path pasta;
     private final Path arquivoAreas;
     private final Path arquivoReservas;
+
+        // Lê as linhas de um arquivo de importação (UTF-8, sem as linhas em branco).
+        // Diferente do carregamento do sistema, aqui o arquivo PRECISA existir.
+    public List<String> lerLinhasDeImportacao(Path arquivo) throws IOException {
+        if (!Files.exists(arquivo)) {
+            throw new NoSuchFileException(arquivo.toString());
+        }
+        return lerLinhas(arquivo);
+    }
 
     public RepositorioCsv(Path pasta) {
         this.pasta = pasta;
